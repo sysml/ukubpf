@@ -120,6 +120,8 @@ static void netdev_test_callback(struct uk_netdev *dev, uint16_t queue_id,
 			break;
 		}
 		*/
+		// mangle pkt
+		do_exec_ebpf(ebpf_vm, buf->data, buf->len);
 		netdev_test_data_tx(queue_id, buf,  1 - instance);
 		/*
 		uk_netbuf_free(buf);
@@ -325,7 +327,7 @@ int main()
 	// this is currently a dummy call to test ebpf
 	// here we need the loader and
 	// in netdev_test_callback the exec
-	do_ebpf();
+	ebpf_vm = do_prepare_ebpf();
 	uk_semaphore_init(&sem_flag, 0);
 	uk_pr_err("Semaphore %ld\n", sem_flag.count);
 	pkt_cnt[0].counter = 0;

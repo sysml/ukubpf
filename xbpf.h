@@ -24,6 +24,8 @@ typedef int bool;
 static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, uint32_t num_insts, char **errmsg);
 static bool bounds_check(void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
 
+struct ubpf_vm *ebpf_vm = 0x0;
+
 struct ubpf_vm *
 ubpf_create(void)
 {
@@ -770,7 +772,7 @@ ubpf_error(const char *fmt, ...)
 static void register_functions(struct ubpf_vm *vm);
 
 
-int do_ebpf()
+struct ubpf_vm * do_prepare_ebpf()
 {
 
 
@@ -802,8 +804,14 @@ int do_ebpf()
         fprintf(stderr, "Failed to load code: %s\n", errmsg);
         free(errmsg);
         ubpf_destroy(vm);
-        return 1;
+        return 0x0;
     }
+
+    return vm;
+}
+
+int do_exec_ebpf(struct ubpf_vm *vm, void *mem, size_t mem_len)
+{
 
     uint64_t ret;
 
