@@ -7,9 +7,9 @@ The unikraft part conists of a modified version of the test-netdev app to use th
 Especially `uk_netdev_rx_one` was adopted accordingly and the automatic buffer allocation `alloc_rxpkts` is configured as a callback.
 
 The actual ebpf code is currently built-in as a hex array in `bpf-binary.h`
-and is loaded, verified, and executed only once at the start in `main`.
-In the upcoming update the execution call is to be placed into the receive call `uk_netdev_rx_one` back to make sense.
-The maps integration will follow shortly.
+and is loaded and verified at the start in `main`, and executed for each incoming pkt
+in the receive call `uk_netdev_rx_one`.
+The maps integration and the corresponding relocation when loading the elf will follow shortly.
 
 
 
