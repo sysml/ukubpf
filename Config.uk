@@ -1,0 +1,64 @@
+### Invisible option for dependencies
+menu "UK Netdev Test"
+
+config UKNETDEVTEST_INIT
+	bool "Init Test"
+	default n
+	depends on LIBUKNETDEV
+
+config UKNETDEVTEST_FETCH
+	bool "Fetch Test"
+	default n
+	depends on LIBUKNETDEV
+
+config UKNETDEVTEST_CONFIGURE
+	bool "Config Test"
+	default n
+	select UKNETDEVTEST_FETCH
+
+config UKNETDEVTEST_CONFIGURE_RX
+	bool "RX Config Test"
+	default n
+	select UKNETDEVTEST_CONFIGURE
+
+config UKNETDEVTEST_CONFIGURE_TX
+	bool "TX Config Test"
+	default n
+	select UKNETDEVTEST_CONFIGURE
+
+config UKNETDEVTEST_RX_INTR
+	bool "RX Enable interrupt"
+	default n
+	select UKNETDEVTEST_CONFIGURE_RX
+
+config UKNETDEVTEST_START
+	bool "Net device start"
+	default n
+	select UKNETDEVTEST_CONFIGURE_RX
+	select UKNETDEVTEST_CONFIGURE_TX
+
+config UKNETDEVTEST_RX
+	bool "Enable RX"
+	default n
+	select UKNETDEVTEST_START
+
+config UKNETDEVTEST_DESCADD
+	bool "Netbuf add descriptor"
+	default n
+	select UKNETDEVTEST_START
+
+endmenu
+
+menu  "Virtio Net Test"
+config VIRTIO_NET_TEST
+	bool "Virtio Net Device Test"
+	default n
+	depends on !LIBUKNETDEV
+
+if VIRTIO_NET_TEST
+config LIBUKNETDEV
+	bool "Mock UK netdev Test"
+	default y
+endif
+
+endmenu

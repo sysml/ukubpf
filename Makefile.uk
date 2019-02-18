@@ -1,0 +1,4 @@
+$(eval $(call addlib,apptestuknet))
+
+APPTESTUKNET_SRCS-y += $(APPTESTUKNET_BASE)/main.c
+APPTESTUKNET_CFLAGS-y += -g -I$(APPTESTUKNET_BASE)/include
