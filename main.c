@@ -67,7 +67,7 @@ static void netdev_test_data_tx(uint16_t queue_id,
 	uk_pr_err("Sending(%d) data of length %d\n",
 			instance, sendbuf->len);
 	rc = uk_netdev_tx_one(netdevice[instance], queue_id, sendbuf);
-	TEST_EXPR(rc == 2);
+	TEST_EXPR(rc | UK_NETDEV_STATUS_SUCCESS);
 }
 
 static void netdev_test_callback(struct uk_netdev *dev, uint16_t queue_id,
@@ -121,7 +121,7 @@ static void netdev_test_callback(struct uk_netdev *dev, uint16_t queue_id,
 		}
 		*/
 		// mangle pkt
-		do_exec_ebpf(ebpf_vm, buf->data, buf->len);
+		//do_exec_ebpf(ebpf_vm, buf->data, buf->len);
 		netdev_test_data_tx(queue_id, buf,  1 - instance);
 		/*
 		uk_netbuf_free(buf);
@@ -328,6 +328,8 @@ int main()
 	// here we need the loader and
 	// in netdev_test_callback the exec
 	ebpf_vm = do_prepare_ebpf();
+	do_exec_ebpf(ebpf_vm, 0 , 0);
+
 	uk_semaphore_init(&sem_flag, 0);
 	uk_pr_err("Semaphore %ld\n", sem_flag.count);
 	pkt_cnt[0].counter = 0;
@@ -374,14 +376,15 @@ int main()
 	uk_pr_err("Semaphore after intr enable %ld\n", sem_flag.count);
 	netdev_test_rxq_intr_enable(1);
 	uk_pr_err("Semaphore after intr enable %ld\n", sem_flag.count);
+	uk_pr_err("Enabling interrupt\n");
 	uk_pr_info("Enabling interrupt\n");
 #endif /* CONFIG_UKNETDEVTEST_RX_INTR */
 
 #ifdef CONFIG_UKNETDEVTEST_DESCADD
-	netdev_test_add_recv_desc_append(0);
-	uk_pr_err("Semaphore after desc 1 %ld\n", sem_flag.count);
-	netdev_test_add_recv_desc_append(1);
-	uk_pr_err("Semaphore after desc 1 %ld\n", sem_flag.count);
+	//netdev_test_add_recv_desc_append(0);
+	//uk_pr_err("Semaphore after desc 1 %ld\n", sem_flag.count);
+	//netdev_test_add_recv_desc_append(1);
+	//uk_pr_err("Semaphore after desc 1 %ld\n", sem_flag.count);
 #endif /* CONFIG_UKNETDEVTEST_DESCADD */
 
 	netdev_receive_prepare(0);

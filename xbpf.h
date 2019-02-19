@@ -135,7 +135,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
 
     if (!insts) {
         /* Code must be loaded before we can execute */
-        return UINT64_MAX;
+        return UINT64_MAX-1;
     }
 
     reg[1] = (uintptr_t)mem;
@@ -177,7 +177,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
         case EBPF_OP_DIV_REG:
             if (reg[inst.src] == 0) {
                 fprintf(stderr, "uBPF error: division by zero at PC %u\n", cur_pc);
-                return UINT64_MAX;
+                return UINT64_MAX-2;
             }
             reg[inst.dst] = u32(reg[inst.dst]) / u32(reg[inst.src]);
             reg[inst.dst] &= UINT32_MAX;
@@ -225,7 +225,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
         case EBPF_OP_MOD_REG:
             if (reg[inst.src] == 0) {
                 fprintf(stderr, "uBPF error: division by zero at PC %u\n", cur_pc);
-                return UINT64_MAX;
+                return UINT64_MAX-3;
             }
             reg[inst.dst] = u32(reg[inst.dst]) % u32(reg[inst.src]);
             break;
@@ -298,7 +298,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
         case EBPF_OP_DIV64_REG:
             if (reg[inst.src] == 0) {
                 fprintf(stderr, "uBPF error: division by zero at PC %u\n", cur_pc);
-                return UINT64_MAX;
+                return UINT64_MAX-4;
             }
             reg[inst.dst] /= reg[inst.src];
             break;
@@ -335,7 +335,7 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
         case EBPF_OP_MOD64_REG:
             if (reg[inst.src] == 0) {
                 fprintf(stderr, "uBPF error: division by zero at PC %u\n", cur_pc);
-                return UINT64_MAX;
+                return UINT64_MAX-5;
             }
             reg[inst.dst] %= reg[inst.src];
             break;
@@ -366,13 +366,13 @@ ubpf_exec(const struct ubpf_vm *vm, void *mem, size_t mem_len)
 #define BOUNDS_CHECK_LOAD(size) \
     do { \
         if (!bounds_check((void *)reg[inst.src] + inst.offset, size, "load", cur_pc, mem, mem_len, stack)) { \
-            return UINT64_MAX; \
+            return UINT64_MAX-6; \
         } \
     } while (0)
 #define BOUNDS_CHECK_STORE(size) \
     do { \
         if (!bounds_check((void *)reg[inst.dst] + inst.offset, size, "store", cur_pc, mem, mem_len, stack)) { \
-            return UINT64_MAX; \
+            return UINT64_MAX-7; \
         } \
     } while (0)
 
