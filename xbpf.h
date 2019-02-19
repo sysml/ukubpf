@@ -819,9 +819,9 @@ int do_exec_ebpf(struct ubpf_vm *vm, void *mem, size_t mem_len)
 
     printf("0x%"PRIx64"\n", ret);
 
-    ubpf_destroy(vm);
+    //ubpf_destroy(vm);
 
-    return 0;
+    return ret;
 }
 
 static uint64_t
