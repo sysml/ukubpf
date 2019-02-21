@@ -17,6 +17,8 @@ typedef int bool;
 #include <errno.h>
 #include "ubpf.h"
 
+#include "uthash.h"
+
 #include "bpf-binary.h"
 
 #define MAX_EXT_FUNCS 64
@@ -25,6 +27,31 @@ static bool validate(const struct ubpf_vm *vm, const struct ebpf_inst *insts, ui
 static bool bounds_check(void *addr, int size, const char *type, uint16_t cur_pc, void *mem, size_t mem_len, void *stack);
 
 struct ubpf_vm *ebpf_vm = 0x0;
+
+typedef struct {
+	uint16_t eth_type;
+	uint16_t proto;
+} key_t;
+
+typedef struct {
+	key_t key; 
+	int value;
+	UT_hash_handle hh;
+} el_t;
+
+struct xbpf_map {
+	unsigned int type;
+	unsigned int key_size;
+	unsigned int value_size;
+	unsigned int max_entries;
+	unsigned int map_flags;
+	el_t * el;
+};
+
+struct xbpf_map xbpf_map = {0};
+
+void *xbpf_map_lookup_elem(struct xbpf_map *map, const void *key);
+
 
 struct ubpf_vm *
 ubpf_create(void)
@@ -807,6 +834,11 @@ struct ubpf_vm * do_prepare_ebpf()
         return 0x0;
     }
 
+    // trial init
+    xbpf_map.key_size = sizeof(key_t);
+    xbpf_map.value_size = 4;
+    xbpf_map.el = NULL;
+
     return vm;
 }
 
@@ -821,7 +853,49 @@ int do_exec_ebpf(struct ubpf_vm *vm, void *mem, size_t mem_len)
 
     //ubpf_destroy(vm);
 
+    // dummy call for pkt counting
+    // should go into ebpf
+    count_pkt(mem);
+
     return ret;
+}
+
+void count_pkt(void *mem)
+{
+	typedef struct {
+		uint8_t eth_src[6];
+		uint8_t eth_dst[6];
+		uint16_t eth_type;
+	} eth_hdr_t ;
+
+	typedef struct {
+		uint8_t ver_ihl;
+		uint8_t tos;
+		uint16_t total_length;
+		uint16_t id;
+		uint16_t frag;
+		uint8_t ttl;
+		uint8_t proto;
+		uint16_t csum;
+		uint32_t src;
+		uint32_t dst;
+	} ipv4_hdr_t;
+
+	uint16_t eth_type = be16toh(((eth_hdr_t *)mem)->eth_type);
+	uint16_t proto = 0;
+
+	if (eth_type == 0x0800){
+		proto = be16toh(((ipv4_hdr_t *)(mem + 14))->proto);
+	}
+	key_t key = { eth_type, proto };
+	el_t * p;
+	int count = 0;
+	p = xbpf_map_lookup_elem(&xbpf_map, &key);
+	if (p) {
+		count = p->value;
+		count += 1;
+	}
+	xbpf_map_update_elem(&xbpf_map, &key, &count, 0);
 }
 
 static uint64_t
@@ -850,5 +924,117 @@ register_functions(struct ubpf_vm *vm)
     ubpf_register(vm, 5, "timestwo", timestwo);
 }
 
+// helper function to recalculate the l3 checksum for ipv4
+
+int fix_ip_checksum(void* vdata, size_t length) {
+
+	struct eth_hdr {
+		uint8_t eth_src[6];
+		uint8_t eth_dst[6];
+		uint16_t eth_type;
+	};
+
+	struct ipv4_hdr {
+		uint8_t ver_ihl;
+		uint8_t tos;
+		uint16_t total_length;
+		uint16_t id;
+		uint16_t frag;
+		uint8_t ttl;
+		uint8_t proto;
+		uint16_t csum;
+		uint32_t src;
+		uint32_t dst;
+	};
+
+	struct eth_hdr * eh;
+	struct ipv4_hdr * ih;
+
+	// Cast the data pointer to one that can be indexed.
+	char* data=(char*)vdata;
+
+	uint16_t eth_type = ((struct eth_hdr *)data)->eth_type;
+
+	// return immediately if not IPv4
+	if (((struct eth_hdr *)data)->eth_type != htobe16(0x0800)) {
+		uk_pr_err("skip pkt type %04x\n", be16toh(((struct eth_hdr *)data)->eth_type));
+		return 0;
+	}
+
+	data += sizeof(struct eth_hdr);
+
+	uint16_t total_length = be16toh(((struct ipv4_hdr *)data)->total_length);
+
+	int ipv4_header_length = (((struct ipv4_hdr *)data)->ver_ihl & 0x07) * 4; // bytes not bits
+
+	uint16_t old_csum = ((struct ipv4_hdr *)data)->csum;
+	// reset checksum
+	((struct ipv4_hdr *)data)->csum = 0x00;
+
+	// make sure length >= total_length, otherwise error
+	if (length-14 != total_length) {
+		uk_pr_err("error in ipv4 pkt len\n");
+		return -1;
+	}
+
+	// Initialise the accumulator.
+	uint32_t acc=0xffff;
+
+	// Handle complete 16-bit blocks.
+	// have to check if mem is aligned
+	for (size_t i=0;i+1<ipv4_header_length;i+=2) {
+		acc += be16toh(*(uint16_t *)(data+i));
+		if (acc>0xffff) {
+			acc-=0xffff;
+		}
+	}
+
+	// Handle any partial block at the end of the data.
+	// should not be necessary here
+	if (ipv4_header_length&1) {
+		uint16_t word=0;
+		memcpy(&word,data+ipv4_header_length-1,1);
+		acc+=be16toh(word);
+		if (acc>0xffff) {
+			acc-=0xffff;
+		}
+	}
+
+	// Return the checksum in network byte order.
+	acc = htobe16(~acc);
+
+	((struct ipv4_hdr *)data)->csum = acc;
+
+	return 0;
+}
 
 
+// more pseudo helpers
+
+
+void *xbpf_map_lookup_elem(struct xbpf_map *map, const void *key)
+{
+	el_t * p, l;
+	memset(&l, 0, sizeof(el_t));
+	l.key = *(key_t*)(key);
+	HASH_FIND(hh, map->el, &l.key, map->key_size, p);
+	return p;
+}
+
+int xbpf_map_update_elem(struct xbpf_map *map, const void *key, const void *value, uint64_t flags)
+{
+	el_t * r;
+	r = (el_t *)malloc(sizeof *r);
+	memset(r, 0, sizeof *r);
+	r->key = *(key_t*)(key);
+	r->value = *(int*)value;
+	// this lookup call is awkward
+	el_t * p = xbpf_map_lookup_elem(map, key);
+	HASH_REPLACE(hh, map->el, key, map->key_size, r, p);
+
+	return 0;
+}
+
+int xbpf_map_delete_elem(struct xbpf_map *map, const void *key)
+{
+}

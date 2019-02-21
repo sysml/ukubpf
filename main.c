@@ -121,8 +121,21 @@ static void netdev_test_callback(struct uk_netdev *dev, uint16_t queue_id,
 		}
 		*/
 		// mangle pkt
-		do_exec_ebpf(ebpf_vm, buf->data, buf->len);
-		netdev_test_data_tx(queue_id, buf,  1 - instance);
+		if (do_exec_ebpf(ebpf_vm, buf->data, buf->len) == 1) {
+			// fix_ip_checksum detects ip pkts automatically
+			// this will become a bpf_l3_csum helper to be called from above ebpf
+			if(fix_ip_checksum(buf->data, buf->len) == 0) {
+				netdev_test_data_tx(queue_id, buf,  1 - instance);
+			}
+			else {
+				// drop: release buffer
+				uk_netbuf_free(buf);
+			}
+		}
+		else {
+			// drop: release buffer
+			uk_netbuf_free(buf);
+		}
 		/*
 		uk_netbuf_free(buf);
 		buf = uk_netbuf_alloc_buf(uk_alloc_get_default(),
@@ -387,6 +400,34 @@ int main()
 	//uk_pr_err("Semaphore after desc 1 %ld\n", sem_flag.count);
 #endif /* CONFIG_UKNETDEVTEST_DESCADD */
 
+#if 1
+	for (;;) {
+		uk_sched_thread_sleep(ukarch_time_sec_to_nsec(1));
+		unsigned int num_els;
+		num_els = HASH_COUNT(xbpf_map.el);
+		printf("there are %u elements\n", num_els);
+
+		{
+			el_t *s, *tmp;
+			unsigned char * key;
+			unsigned char * value;
+			key = malloc(xbpf_map.key_size);
+			value = malloc(xbpf_map.value_size);
+			HASH_ITER(hh, xbpf_map.el , s, tmp) {
+				memcpy(key,&(s->key),xbpf_map.key_size);
+				memcpy(value,&(s->value),xbpf_map.value_size);
+				// have to find a way to adapt to key and value size
+				printf("key 0x%08x, value %d\n", *(uint32_t*)key, *(uint32_t*)value);
+			}
+			free(key);
+			free(value);
+		}
+
+		//printf(".");
+		fflush(stdout);
+	}
+#else
 	netdev_receive_prepare(0);
+#endif
 	return 0;
 }
