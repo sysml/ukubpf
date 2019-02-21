@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <assert_test.h>
 #include <uk/netdev.h>
@@ -403,26 +404,7 @@ int main()
 #if 1
 	for (;;) {
 		uk_sched_thread_sleep(ukarch_time_sec_to_nsec(1));
-		unsigned int num_els;
-		num_els = HASH_COUNT(xbpf_map.el);
-		printf("there are %u elements\n", num_els);
-
-		{
-			el_t *s, *tmp;
-			unsigned char * key;
-			unsigned char * value;
-			key = malloc(xbpf_map.key_size);
-			value = malloc(xbpf_map.value_size);
-			HASH_ITER(hh, xbpf_map.el , s, tmp) {
-				memcpy(key,&(s->key),xbpf_map.key_size);
-				memcpy(value,&(s->value),xbpf_map.value_size);
-				// have to find a way to adapt to key and value size
-				printf("key 0x%08x, value %d\n", *(uint32_t*)key, *(uint32_t*)value);
-			}
-			free(key);
-			free(value);
-		}
-
+		show_stats();
 		//printf(".");
 		fflush(stdout);
 	}
